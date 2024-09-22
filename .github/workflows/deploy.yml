@@ -1,0 +1,56 @@
+name: Deploy to AWS ECS
+
+on:
+  push:
+    branches:
+      - main  # Trigger deployment when code is pushed to the 'main' branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # Step 2: Log in to Amazon ECR
+      - name: Log in to Amazon ECR
+        id: ecr-login
+        run: |
+          aws --version
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+
+      # Step 3: Build and tag the Docker image
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ secrets.ECR_REPOSITORY }} .
+          docker tag ${{ secrets.ECR_REPOSITORY }}:${{ github.sha }} ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
+
+      # Step 4: Push the Docker image to ECR
+      - name: Push Docker image to ECR
+        run: |
+          docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
+
+      # Step 5: Update the ECS service to use the new image
+      - name: Deploy to ECS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          # Update the ECS task definition with the new image
+          TASK_FAMILY=$(aws ecs describe-task-definition --task-definition ${{ secrets.ECS_SERVICE }} | jq -r '.taskDefinition.family')
+          CONTAINER_DEFINITIONS=$(aws ecs describe-task-definition --task-definition ${{ secrets.ECS_SERVICE }} | jq -r '.taskDefinition.containerDefinitions')
+
+          NEW_CONTAINER_DEFINITIONS=$(echo $CONTAINER_DEFINITIONS | sed -e "s|${{ secrets.ECR_REGISTRY }}/.*:.*|${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}|g")
+
+          aws ecs register-task-definition \
+            --family $TASK_FAMILY \
+            --container-definitions "$NEW_CONTAINER_DEFINITIONS"
+
+          # Update the ECS service with the new task definition
+          aws ecs update-service \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --service ${{ secrets.ECS_SERVICE }} \
+            --force-new-deployment
