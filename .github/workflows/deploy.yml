@@ -62,12 +62,15 @@ jobs:
             exit 1
           fi
 
+          # Debug: Print container definitions
+          echo "Current Container Definitions: $CONTAINER_DEFINITIONS"
+
           # Update the container image with the new image from ECR
-          NEW_CONTAINER_DEFINITIONS=$(echo "$CONTAINER_DEFINITIONS" | jq '.[] | select(.name=="todo-app") | .image = "'${{ secrets.ECR_REGISTRY }}'/'${{ secrets.ECR_REPOSITORY }}':latest"')
-          
+          NEW_CONTAINER_DEFINITIONS=$(echo "$CONTAINER_DEFINITIONS" | jq 'map(if .name == "todo-app" then .image = "'${{ secrets.ECR_REGISTRY }}'/'${{ secrets.ECR_REPOSITORY }}':latest" else . end)')
 
           if [ -z "$NEW_CONTAINER_DEFINITIONS" ]; then
             echo "Error: Unable to update container definition with new image"
+            echo "Container definitions: $CONTAINER_DEFINITIONS"  # Print the original definitions for debugging
             exit 1
           fi
 
@@ -95,3 +98,8 @@ jobs:
             --service ${{ secrets.ECS_SERVICE }} \
             --task-definition $NEW_TASK_DEFINITION_ARN \
             --force-new-deployment
+
+          if [ $? -ne 0 ]; then
+            echo "Error: Failed to update ECS service"
+            exit 1
+          fi
