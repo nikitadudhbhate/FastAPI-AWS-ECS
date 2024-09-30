@@ -63,7 +63,8 @@ jobs:
           fi
 
           # Update the container image with the new image from ECR
-          NEW_CONTAINER_DEFINITIONS=$(echo $CONTAINER_DEFINITIONS | jq '.[] | select(.name=="todo-app") | .image = "'${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:latest"')
+          NEW_CONTAINER_DEFINITIONS=$(echo "$CONTAINER_DEFINITIONS" | jq '.[] | select(.name=="todo-app") | .image = "'${{ secrets.ECR_REGISTRY }}'/'${{ secrets.ECR_REPOSITORY }}':latest"')
+          
 
           if [ -z "$NEW_CONTAINER_DEFINITIONS" ]; then
             echo "Error: Unable to update container definition with new image"
