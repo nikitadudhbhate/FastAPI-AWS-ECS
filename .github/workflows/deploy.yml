@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Check out the repository
+      # Step 1: Check out the repository 
       - name: Checkout code
         uses: actions/checkout@v2
 
@@ -46,13 +46,16 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
           # Fetch the current task definition
+          
           TASK_FAMILY=$(aws ecs describe-task-definition --task-definition ${{ secrets.ECS_SERVICE }} | jq -r '.taskDefinition.family')
           CONTAINER_DEFINITIONS=$(aws ecs describe-task-definition --task-definition ${{ secrets.ECS_SERVICE }} | jq -r '.taskDefinition.containerDefinitions')
 
           # Update the container image with the new image from ECR
+          
           NEW_CONTAINER_DEFINITIONS=$(echo $CONTAINER_DEFINITIONS | sed -e "s|${{ secrets.ECR_REGISTRY }}/.*:.*|${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}|g")
 
           # Register the new task definition
+          
           aws ecs register-task-definition \
             --family $TASK_FAMILY \
             --container-definitions "$NEW_CONTAINER_DEFINITIONS"
